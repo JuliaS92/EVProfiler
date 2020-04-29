@@ -53,15 +53,17 @@ df_pca.columns = ['Primary ID', 'ClassID', 'Lead gene name',
        'PCA 1', 'PCA2']
 
 
-# In[16]:
+# In[4]:
 
 
 ## Backend functions
+
+## single query dataset
 def hv_query_df(df_core, meta_dict, gene, dist="Manhattan",
                 min_enr=-1, min_corr=0, size=50, rank_tolerance=25, perc_area=250):
     size += 1
     if gene.upper() not in meta_dict["gene_id"].keys():
-        return "Gene not in dataset"
+        return "Gene {} not in dataset".format(gene)
     
     # Filter data
     df = df_core.loc[[enr >= min_enr and corr >= min_corr for enr, corr
@@ -78,7 +80,7 @@ def hv_query_df(df_core, meta_dict, gene, dist="Manhattan",
             gene, str(query_id), max_count)
         query_id = max_count
     if query_id not in df.index:
-        return "The query protein was filtered out."
+        return "The query protein {} was filtered out.".format(gene)
     query_profile = df.loc[query_id,:]
     
     # Calculate difference profiles and sum within replicates
@@ -136,8 +138,30 @@ def hv_query_df(df_core, meta_dict, gene, dist="Manhattan",
     
     return out, q, msg
 
+## query multiple genes
+def multi_query(df_core, meta_dict, genes, dist="Manhattan",
+                min_enr=-1, min_corr=0, size=50, rank_tolerance=25, perc_area=250):
+    hits = []
+    qs = []
+    msgs = ""
+    for gene in genes:
+        output = hv_query_df(df_core, meta_dict, gene=gene, size=size, rank_tolerance=rank_tolerance,
+                             min_enr=min_enr, min_corr=min_corr, perc_area=perc_area)
+        if len(output) == 3:
+            (h, q, m) = output
+            h["Query"] = np.repeat(gene, len(h))
+            hits.append(h)
+            qs.append(q)
+        else:
+            m = output
+        msgs= msgs+m+"\n"
+    
+    query_result = pd.concat(hits)
+    q = pd.DataFrame(qs).apply(np.mean, axis=0)
+    
+    return query_result.reset_index(drop=True), q, msgs
 
-# Plotting functions
+## barplot function single query
 def sq_barplot(df, var):
     q_m = df[["Distance measure", "Rank range", "Delta F3", "Min correl", "Local distance percentile",
               "Lead gene name", "Common lists", "z-scoring based category"]]
@@ -164,12 +188,14 @@ def sq_barplot(df, var):
     p.opts(legend_position="top")
     return p
 
+## Network construction functions
 def filter_nwk_members(query_result, min_rep, max_z):
     nwk_members_1 = query_result[query_result["Common lists"] >= min_rep]["id"].values
     z_dict = {"-":5, "B":4, "*":3, "**":2, "***":1, np.nan:0, None:0}
     query_result["z-scoring based category"] = [z_dict[k] for k in query_result["z-scoring based category"]]
     nwk_members_2 = query_result[query_result["z-scoring based category"] <= max_z]["id"].values
     nwk_members = [el for el in nwk_members_1 if el in nwk_members_2]
+    nwk_members = np.unique(nwk_members)
     if len(nwk_members) == 1:
         return None
     else:
@@ -200,6 +226,7 @@ def layout_network(df_core, query_result, nwk_members, max_q, q, layout_method="
     
     return dists_pd, GP
 
+## Functions for drawing a network
 def draw_network_figure(dists_pd, GP, query_result, highlight, q):
     # Regerate network graph from distances
     G = nx.Graph()
@@ -208,6 +235,7 @@ def draw_network_figure(dists_pd, GP, query_result, highlight, q):
                    quantile=dists_pd.iloc[idx,3])
 
     fig = plt.figure(figsize=(7,7))
+    fig.set_dpi(300)
 
     # edges
     edge_styles = [{"width": 5, "edge_color": "darkred", "style": "solid", "alpha": 1}, # 0.1%
@@ -245,8 +273,12 @@ def draw_network_figure(dists_pd, GP, query_result, highlight, q):
     nx.draw_networkx_nodes(Gi, GP, node_color="orange", node_size=600)
     nx.draw_networkx_labels(Gi, GP, font_size=7)
     # query
-    Gi = nx.Graph([(hit,hit) for hit in [query_result["Lead gene name"][0]] if hit in G.nodes()])
-    nx.draw_networkx_nodes(Gi, GP, node_color="red", node_size=600)
+    if "Query" in query_result.columns:
+        Gi = nx.Graph([(hit,hit) for hit in np.unique(query_result["Query"]) if hit in G.nodes()])
+        nx.draw_networkx_nodes(Gi, GP, node_color="red", node_size=600)
+    else:
+        Gi = nx.Graph([(hit,hit) for hit in [query_result["Lead gene name"][0]] if hit in G.nodes()])
+        nx.draw_networkx_nodes(Gi, GP, node_color="red", node_size=600)
     plt.close()
 
     return fig
@@ -273,9 +305,14 @@ def draw_network_interactive(dists_pd, GP, query_result, highlight, q):
     Gi = nx.Graph([(hit,hit) for hit, rep in zip(query_result["Lead gene name"], query_result["Common lists"]) if rep==3 and hit in G.nodes()])
     labels2 = hvnx.draw(Gi, GP, node_color="orange", node_size=2500, with_labels=True,
                         width=width, height=width)
-    Gi = nx.Graph([(hit,hit) for hit in [query_result["Lead gene name"][0]] if hit in G.nodes()])
-    labels3 = hvnx.draw(Gi, GP, node_color="red", node_size=2500, with_labels=True,
-                        width=width, height=width)
+    if "Query" in query_result.columns:
+        Gi = nx.Graph([(hit,hit) for hit in np.unique(query_result["Query"]) if hit in G.nodes()])
+        labels3 = hvnx.draw(Gi, GP, node_color="red", node_size=2500, with_labels=True,
+                            width=width, height=width)
+    else:
+        Gi = nx.Graph([(hit,hit) for hit in [query_result["Lead gene name"][0]] if hit in G.nodes()])
+        labels3 = hvnx.draw(Gi, GP, node_color="red", node_size=2500, with_labels=True,
+                            width=width, height=width)
     # .opts(tools=[HoverTool(tooltips=[('index', '@index_hover')])])
 
     # edges
@@ -302,7 +339,7 @@ def draw_network_interactive(dists_pd, GP, query_result, highlight, q):
     return nw
 
 
-# In[17]:
+# In[5]:
 
 
 ## Interface elements for single query output
@@ -351,7 +388,7 @@ input_sq_bary = pn.widgets.Select(options=["Distance", "z-scoring based category
                                            "Local distance percentile"], name="Select y-axis to display:")
 
 
-# In[18]:
+# In[6]:
 
 
 ## Functions for single query data display
@@ -371,7 +408,7 @@ def store_gene_data(gene, topn, tolerance, min_corr, min_enr, nhsize):
         msg = output
         cache_sq_neighborhood.object = ""
         cache_sq_q.object = ""
-    return msg
+    return msg if len(output) == 1 else msg+"{} total pairs".format(len(df))
 
 # Barplot
 @pn.depends(cache_sq_neighborhood.param.object, input_sq_bary.param.value)
@@ -384,12 +421,12 @@ def get_gene_data(df, var):
     return p
 
 # Networkplot
-@pn.depends(cache_sq_q.param.object,
+@pn.depends(cache_sq_q.param.object, cache_sq_neighborhood.param.object,
             input_sq_minz.param.value, input_sq_maxq.param.value, input_sq_minrep.param.value)
-def layout_single_network(q, min_z, max_q, min_rep):
+def layout_single_network(q, query, min_z, max_q, min_rep):
     # Retrieve neighborhood information
     try:
-        query_result = pd.read_json(cache_sq_neighborhood.object).sort_values("Distance measure")
+        query_result = pd.read_json(query).sort_values("Distance measure")
         q = pd.read_json(q, typ="series", convert_dates=False, convert_axes=False)
     except:
         cache_sq_nwdists.object = ""
@@ -446,22 +483,178 @@ def draw_single_network(GP, highlight, figure_style):
     
     return nwk
 
-#@pn.depends(cache_sq_gp.param.object, cache_sq_q.param.object
-#def draw_single_network()
 
-
-# In[19]:
+# In[7]:
 
 
 ## Assemble output tabs for single query
 output_bar = pn.Column(input_sq_bary, get_gene_data)
 output_nwk = pn.Column(pn.Row(input_sq_minz, input_sq_maxq, input_sq_minrep),
-                       pn.Row(input_sq_disablehvnx, input_sq_highlight),
+                       pn.Row(input_sq_highlight, input_sq_disablehvnx),
                        draw_single_network, layout_single_network)
 
 output_sq_tabs = pn.Tabs()
 output_sq_tabs.append(("Network plot", output_nwk))
 output_sq_tabs.append(("Barplot", output_bar))
+
+
+# In[8]:
+
+
+## Interface elements for multiple network query
+
+# Caching panels for multiqueries
+cache_mq_query = pn.pane.Str("")
+cache_mq_q = pn.pane.Str("")
+cache_mq_nwdists = pn.pane.Str("")
+cache_mq_gp = pn.pane.Str("")
+
+# Main options
+input_mq_preselected = pn.widgets.Select(options=["CD63, CD81, CD3G", "Tetraspanins", "EV Markers from PCA"],
+                                         name="Predefined gene lists")
+input_mq_list = pn.widgets.TextAreaInput(value="CD63, CD81, CD3G",
+                                         name="List of gene symbols to compare (select from above for examples)")
+input_mq_topn = pn.widgets.IntSlider(start=20, end=100, step=5, value=30, value_throttled=30,
+                                     name="Neighborhood size")
+
+# Advanced options
+input_mq_tolerance = pn.widgets.IntSlider(start=5, end=50, step=5, value=45, value_throttled=45,
+                                          name="Replicate neighborhood tolerance")
+input_mq_minr = pn.widgets.FloatSlider(start=-1, end=1, step=0.05, value=0, value_throttled=0,
+                                       name="Minimal profile correlation")
+input_mq_minenr = pn.widgets.FloatSlider(start=-1, end=1, step=0.05, value=-1, value_throttled=-1,
+                                         name="Minimal percentile shift in F3 vs. full proteome")
+input_mq_nhsize = pn.widgets.IntSlider(start=50, end=500, step=50, value=250, value_throttled=250,
+                                       name="Neighborhood size for scoring")
+
+# Tabcolumn containing options
+options_multi = pn.Tabs()
+options_multi.append(("Neighborhood selection", pn.Column(input_mq_preselected, input_mq_list, input_mq_topn)))
+options_multi.append(("Advanced options", pn.Column(input_mq_tolerance, input_mq_minr,
+                                                    input_mq_minenr, input_mq_nhsize)))
+
+# Options for multi query network
+input_mq_minz = pn.widgets.Select(options=["***", "**", "*", "B", "all"],
+                                  name="Minimum z scoring for nodes:", value="B")
+input_mq_minrep = pn.widgets.Select(options=[1, 2, 3], name="Minimum shared replicates:", value=2)
+input_mq_maxq = pn.widgets.Select(options=["1%", "5%", "10%", "25%", "50%", "100%"],
+                                  name="Minimum quantile for edges:", value="50%")
+input_mq_highlight = pn.widgets.AutocompleteInput(options=[el for el in meta_dict["gene_id"].keys() if type(el) == str]+
+                                                  ["none", "None"], name="Highlight gene:", value="None")
+input_mq_disablehvnx = pn.widgets.Checkbox(value=False, name="figure style")
+
+
+# In[9]:
+
+
+## Functions for multi query data display
+
+# Put in predefined gene sets
+def update_genelist(event):
+    l = event.new
+    lg_dict = {"CD63, CD81, CD3G": "CD63, CD81, CD3G",
+               "Tetraspanins": "CD81, CD9, CD63, CD151, TSPAN33, CD82, CD53, TSPAN5, TSPAN7, ADAM10, IGSF8, SCARB1",
+               "EV Markers from PCA": "TTYH3, PLSCR3, MINK1, SELPLG, IGSF8, CD9, SLC44A1, CD53, CD82, TNFAIP3,+\
+                ARRDC1, ALCAM, CD63, TAOK1, MAP4K4, VPS28, PPP1R18, CD81, CHMP2A, PIP4K2A, PDCD6, SH3GL1, VPS4B,+\
+                CHMP2B, CHMP1A, VPS4A, ANXA7, GDI2, TRIM25, LDHA, KARS"}
+    if l in lg_dict.keys():
+        input_mq_list.value = lg_dict[l]
+input_mq_preselected.param.watch(update_genelist, 'value')
+    
+
+# Get the multi query data
+@pn.depends(input_mq_list.param.value, input_mq_topn.param.value_throttled,
+            input_mq_tolerance.param.value_throttled, input_mq_minr.param.value_throttled,
+            input_mq_minenr.param.value_throttled, input_mq_nhsize.param.value_throttled)
+def store_mq_data(genes, topn, tolerance, min_corr, min_enr, nhsize):
+    genes = [el.strip() for el in input_mq_list.value.split(",")]
+    output = multi_query(df_core, meta_dict, genes=genes, size=topn, rank_tolerance=tolerance,
+                         min_corr=min_corr, min_enr=min_enr, perc_area=nhsize)
+    if len(output) == 3:
+        (df, q, msg) = output
+        cache_mq_query.object = df.to_json()
+        cache_mq_q.object = q.to_json()
+    else:
+        msg = output
+        cache_mq_query.object = ""
+        cache_mq_q.object = ""
+    return msg if len(output) == 1 else msg+"{} total pairs".format(len(df))
+
+
+# Networkplot
+@pn.depends(cache_mq_q.param.object, cache_mq_query.param.object,
+            input_mq_minz.param.value, input_mq_maxq.param.value, input_mq_minrep.param.value)
+def layout_multi_network(q, query, min_z, max_q, min_rep):
+    # Retrieve neighborhood information
+    try:
+        query_result = pd.read_json(query).sort_values("Distance measure")
+        q = pd.read_json(q, typ="series", convert_dates=False, convert_axes=False)
+    except:
+        cache_mq_nwdists.object = ""
+        cache_mq_gp.object = ""
+        return "Failed to read neighborhood (see setings panel for details)."
+    
+    # Define node list
+    z_dict = {"all":5, "B":4, "*":3, "**":2, "***":1}
+    min_z = z_dict[min_z]
+    try:
+        nwk_members = filter_nwk_members(query_result, min_rep, min_z)
+    except:
+        cache_mq_nwdists.object = ""
+        cache_mq_gp.object = ""
+        return "Failed to generate node list."
+    
+    # Layout network
+    q_dict = {"1%":0.01, "5%":0.05, "10%":0.1, "25%":0.25, "50%":0.5, "100%":1}
+    try:
+        dists_pd, GP = layout_network(df_core, query_result, nwk_members, q_dict[max_q], q, layout_method="Spring")
+    except:
+        cache_mq_nwdists.object = ""
+        cache_mq_gp.object = ""
+        return "Failed to layout network."
+    
+    # Store distances and layout in caching panels
+    cache_mq_nwdists.object = dists_pd.to_json()
+    cache_mq_gp.object = pd.DataFrame(GP).to_json()
+    
+    return ""
+
+@pn.depends(cache_mq_gp.param.object, input_mq_highlight.param.value, input_mq_disablehvnx.param.value)
+def draw_multi_network(GP, highlight, figure_style):
+    # Read query result and quantile cutoffs
+    try:
+        query_result = pd.read_json(cache_mq_query.object).sort_values("Distance measure")
+        q = pd.read_json(cache_mq_q.object, typ="series", convert_dates=False, convert_axes=False)
+    except:
+        return ""
+    
+    # Read distances and network layout from cache
+    try:
+        dists_pd = pd.read_json(cache_mq_nwdists.object)
+        GP = pd.read_json(GP).to_dict()
+        GP = {k: np.array(list(GP[k].values())) for k in GP.keys()}
+    except:
+        return ""
+    
+    # switch between figure and interactive style
+    if figure_style:
+        nwk = draw_network_figure(dists_pd, GP, query_result, highlight, q)
+    else:
+        nwk = draw_network_interactive(dists_pd, GP, query_result, highlight, q)
+    
+    return nwk
+
+
+# In[10]:
+
+
+## Assemble output tabs for multi query
+output_mq_nwk = pn.Column(pn.Row(input_mq_minz, input_mq_maxq, input_mq_minrep),
+                          pn.Row(input_mq_highlight, input_mq_disablehvnx),
+                          draw_multi_network, layout_multi_network)
+
+output_mq_tabs = pn.Tabs()
+output_mq_tabs.append(("Network plot", output_mq_nwk))
 
 
 # In[20]:
@@ -470,8 +663,10 @@ output_sq_tabs.append(("Barplot", output_bar))
 ## Assemble full app
 content = pn.Tabs()
 content.append(("Single gene query", pn.Row(pn.Column(options_single, store_gene_data), output_sq_tabs)))
+content.append(("Multi gene query", pn.Row(pn.Column(options_multi, store_mq_data), output_sq_tabs)))
+content.append(("About", pn.pane.Markdown("## Reference\n## Data download\n## Interpretation guidelines")))
 
-app = pn.Column("# Exosome neighborhood analysis", content)
+app = pn.Column("# Jurkat EV Neighbour Network Predictor Tool", content)
 
 
 pwd = pn.widgets.PasswordInput(name="Please enter password for access.")
@@ -488,10 +683,4 @@ pwd.param.watch(check_pwd, 'value')
 
 
 app_container.servable()
-
-
-# In[ ]:
-
-
-
 
