@@ -663,7 +663,7 @@ output_mq_tabs.append(("Network plot", output_mq_nwk))
 ## Assemble full app
 content = pn.Tabs()
 content.append(("Single gene query", pn.Row(pn.Column(options_single, store_gene_data), output_sq_tabs)))
-content.append(("Multi gene query", pn.Row(pn.Column(options_multi, store_mq_data), output_sq_tabs)))
+content.append(("Multi gene query", pn.Row(pn.Column(options_multi, store_mq_data), output_mq_tabs)))
 content.append(("About", pn.pane.Markdown("## Reference\n## Data download\n## Interpretation guidelines")))
 
 app = pn.Column("# Jurkat EV Neighbour Network Predictor Tool", content)
