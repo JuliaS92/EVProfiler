@@ -554,8 +554,8 @@ def update_genelist(event):
     l = event.new
     lg_dict = {"CD63, CD81, CD3G": "CD63, CD81, CD3G",
                "Tetraspanins": "CD81, CD9, CD63, CD151, TSPAN33, CD82, CD53, TSPAN5, TSPAN7, ADAM10, IGSF8, SCARB1",
-               "EV Markers from PCA": "TTYH3, PLSCR3, MINK1, SELPLG, IGSF8, CD9, SLC44A1, CD53, CD82, TNFAIP3,+\
-                ARRDC1, ALCAM, CD63, TAOK1, MAP4K4, VPS28, PPP1R18, CD81, CHMP2A, PIP4K2A, PDCD6, SH3GL1, VPS4B,+\
+               "EV Markers from PCA": "TTYH3, PLSCR3, MINK1, SELPLG, IGSF8, CD9, SLC44A1, CD53, CD82, TNFAIP3, \
+                ARRDC1, ALCAM, CD63, TAOK1, MAP4K4, VPS28, PPP1R18, CD81, CHMP2A, PIP4K2A, PDCD6, SH3GL1, VPS4B, \
                 CHMP2B, CHMP1A, VPS4A, ANXA7, GDI2, TRIM25, LDHA, KARS"}
     if l in lg_dict.keys():
         input_mq_list.value = lg_dict[l]
@@ -657,7 +657,7 @@ output_mq_tabs = pn.Tabs()
 output_mq_tabs.append(("Network plot", output_mq_nwk))
 
 
-# In[20]:
+# In[11]:
 
 
 ## Assemble full app
@@ -679,7 +679,7 @@ def check_pwd(event, app=app):
 pwd.param.watch(check_pwd, 'value')
 
 
-# In[21]:
+# In[12]:
 
 
 app_container.servable()
