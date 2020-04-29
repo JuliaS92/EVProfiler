@@ -53,7 +53,7 @@ df_pca.columns = ['Primary ID', 'ClassID', 'Lead gene name',
        'PCA 1', 'PCA2']
 
 
-# In[4]:
+# In[16]:
 
 
 ## Backend functions
@@ -261,6 +261,9 @@ def draw_network_interactive(dists_pd, GP, query_result, highlight, q):
     if width < 400:
         width=400
     
+    Gi = nx.Graph([(hit,hit) for hit in [highlight] if hit in G.nodes()])
+    highlight = hvnx.draw(Gi, GP, node_color="blue", node_size=3000, with_labels=False,
+                        width=width, height=width)
     Gi = nx.Graph([(hit,hit) for hit, rep in zip(query_result["Lead gene name"], query_result["Common lists"]) if rep==1 and hit in G.nodes()])
     labels0 = hvnx.draw(Gi, GP, node_color="white", node_size=2500, with_labels=True,
                         width=width, height=width)
@@ -295,11 +298,11 @@ def draw_network_interactive(dists_pd, GP, query_result, highlight, q):
                          width=width, height=width, **style)
         edges.append(edge)
     
-    nw = hv.Overlay(edges[::-1]) * labels0 * labels1 * labels2 * labels3
+    nw = hv.Overlay(edges[::-1]) * highlight * labels0 * labels1 * labels2 * labels3
     return nw
 
 
-# In[5]:
+# In[17]:
 
 
 ## Interface elements for single query output
@@ -348,7 +351,7 @@ input_sq_bary = pn.widgets.Select(options=["Distance", "z-scoring based category
                                            "Local distance percentile"], name="Select y-axis to display:")
 
 
-# In[6]:
+# In[18]:
 
 
 ## Functions for single query data display
@@ -447,7 +450,7 @@ def draw_single_network(GP, highlight, figure_style):
 #def draw_single_network()
 
 
-# In[7]:
+# In[19]:
 
 
 ## Assemble output tabs for single query
@@ -461,7 +464,7 @@ output_sq_tabs.append(("Network plot", output_nwk))
 output_sq_tabs.append(("Barplot", output_bar))
 
 
-# In[8]:
+# In[20]:
 
 
 ## Assemble full app
@@ -481,8 +484,14 @@ def check_pwd(event, app=app):
 pwd.param.watch(check_pwd, 'value')
 
 
-# In[9]:
+# In[21]:
 
 
 app_container.servable()
+
+
+# In[ ]:
+
+
+
 
