@@ -251,6 +251,53 @@ def draw_network_figure(dists_pd, GP, query_result, highlight, q):
 
     return fig
 
+def draw_network_interactive(dists_pd, GP, query_result, highlight, q):
+    G = nx.Graph()
+    for idx in range(len(dists_pd)):
+        G.add_edge(dists_pd.iloc[idx,0], dists_pd.iloc[idx,1], weight=dists_pd.iloc[idx,2],
+                   quantile=dists_pd.iloc[idx,3])
+    
+    width=min(900, int(np.sqrt(len(G.nodes)))*150)
+    if width < 400:
+        width=400
+    
+    Gi = nx.Graph([(hit,hit) for hit, rep in zip(query_result["Lead gene name"], query_result["Common lists"]) if rep==1 and hit in G.nodes()])
+    labels0 = hvnx.draw(Gi, GP, node_color="white", node_size=2500, with_labels=True,
+                        width=width, height=width)
+    Gi = nx.Graph([(hit,hit) for hit, rep in zip(query_result["Lead gene name"], query_result["Common lists"]) if rep==2 and hit in G.nodes()])
+    labels1 = hvnx.draw(Gi, GP, node_color="lightgrey", node_size=2500, with_labels=True,
+                        width=width, height=width)
+    Gi = nx.Graph([(hit,hit) for hit, rep in zip(query_result["Lead gene name"], query_result["Common lists"]) if rep==3 and hit in G.nodes()])
+    labels2 = hvnx.draw(Gi, GP, node_color="orange", node_size=2500, with_labels=True,
+                        width=width, height=width)
+    Gi = nx.Graph([(hit,hit) for hit in [query_result["Lead gene name"][0]] if hit in G.nodes()])
+    labels3 = hvnx.draw(Gi, GP, node_color="red", node_size=2500, with_labels=True,
+                        width=width, height=width)
+    # .opts(tools=[HoverTool(tooltips=[('index', '@index_hover')])])
+
+    # edges
+    edge_styles = [{"edge_width": 8, "edge_color": "darkred", "style": "solid", "alpha": 1}, # 0.1%
+                   {"edge_width": 8, "edge_color": "darkred", "style": "solid", "alpha": 1}, # 0.5%
+                   {"edge_width": 8, "edge_color": "darkred", "style": "solid", "alpha": 1}, # 1%
+                   {"edge_width": 6, "edge_color": "red", "style": "solid", "alpha": 1}, # 2.5%
+                   {"edge_width": 6, "edge_color": "red", "style": "solid", "alpha": 1}, # 5%
+                   {"edge_width": 4, "edge_color": "darkorange", "style": "solid", "alpha": 1}, # 10%
+                   {"edge_width": 3, "edge_color": "#ababab", "style": "solid", "alpha": 1}, # 25%
+                   {"edge_width": 2, "edge_color": "lightgrey", "style": "solid", "alpha": 1}, # 50%
+                   {"edge_width": 2, "edge_color": "lightgrey", "style": "dotted", "alpha": 1}] # 100%
+    edges = []
+    for q_cat, style in zip(q.index[1:], edge_styles):
+        edgelist = [(u, v) for (u, v, d) in G.edges(data=True) if d['quantile']==float(q_cat)]
+        if len(edgelist) == 0:
+            continue
+        Gi = nx.Graph(edgelist)
+        edge = hvnx.draw(Gi, GP, node_size=2000, with_labels=False,
+                         width=width, height=width, **style)
+        edges.append(edge)
+    
+    nw = hv.Overlay(edges[::-1]) * labels0 * labels1 * labels2 * labels3
+    return nw
+
 
 # In[5]:
 
@@ -392,7 +439,7 @@ def draw_single_network(GP, highlight, figure_style):
     if figure_style:
         nwk = draw_network_figure(dists_pd, GP, query_result, highlight, q)
     else:
-        nwk = "Interactive figure to be added here."
+        nwk = draw_network_interactive(dists_pd, GP, query_result, highlight, q)
     
     return nwk
 
