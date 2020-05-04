@@ -140,7 +140,7 @@ def hv_query_df(df_core, meta_dict, gene, dist="Manhattan",
 
 ## query multiple genes
 def multi_query(df_core, meta_dict, genes, dist="Manhattan",
-                min_enr=-1, min_corr=0, size=50, rank_tolerance=25, perc_area=250):
+                min_enr=-1, min_corr=0, size=50, rank_tolerance=25, perc_area=250, pb=None):
     hits = []
     qs = []
     msgs = ""
@@ -155,6 +155,8 @@ def multi_query(df_core, meta_dict, genes, dist="Manhattan",
         else:
             m = output
         msgs= msgs+m+"\n"
+        if pb:
+            pb.value = pb.value+1
     
     query_result = pd.concat(hits)
     q = pd.DataFrame(qs).apply(np.mean, axis=0)
@@ -352,9 +354,11 @@ cache_sq_gp = pn.pane.Str("")  # network layout positions
 
 # Main options
 input_sq_gene = pn.widgets.AutocompleteInput(options=[el for el in meta_dict["gene_id"].keys() if type(el) == str],
-                                             name="Select gene:", value="CD63")
+                                             name="Select gene (capital letters):", value="CD63")
 input_sq_topn = pn.widgets.IntSlider(start=20, end=100, step=5, value=50, value_throttled=50,
                                      name="Neighborhood size")
+input_sq_button = pn.widgets.Button(name='Calculate neighborhood', button_type='primary')
+output_sq_status = pn.pane.Markdown("", width_policy="max", sizing_mode="stretch_width")
 
 # Advanced options
 input_sq_tolerance = pn.widgets.IntSlider(start=5, end=50, step=5, value=25, value_throttled=25,
@@ -368,7 +372,8 @@ input_sq_nhsize = pn.widgets.IntSlider(start=50, end=500, step=50, value=250, va
 
 # Tabcolumn containing options
 options_single = pn.Tabs()
-options_single.append(("Neighborhood selection", pn.Column(input_sq_gene, input_sq_topn)))
+options_single.append(("Neighborhood selection", pn.Column(input_sq_gene, input_sq_topn,
+                                                           input_sq_button, output_sq_status)))
 options_single.append(("Advanced options", pn.Column(input_sq_tolerance, input_sq_minr,
                                                      input_sq_minenr, input_sq_nhsize)))
 
@@ -394,21 +399,23 @@ input_sq_bary = pn.widgets.Select(options=["Distance", "z-scoring based category
 ## Functions for single query data display
 
 # Get the single query data
-@pn.depends(input_sq_gene.param.value, input_sq_topn.param.value_throttled,
-            input_sq_tolerance.param.value_throttled, input_sq_minr.param.value_throttled,
-            input_sq_minenr.param.value_throttled, input_sq_nhsize.param.value_throttled)
-def store_gene_data(gene, topn, tolerance, min_corr, min_enr, nhsize):
-    output = hv_query_df(df_core, meta_dict, gene=gene, size=topn, rank_tolerance=tolerance,
-                        min_corr=min_corr, min_enr=min_enr, perc_area=nhsize)
+def store_gene_data(event):
+    input_sq_button.disabled=True
+    output_sq_status.object = "Calculating neighborhood ..."
+    output = hv_query_df(df_core, meta_dict, gene=input_sq_gene.value, size=input_sq_topn.value_throttled,
+                         rank_tolerance=input_sq_tolerance.value_throttled, min_corr=input_sq_minr.value_throttled,
+                         min_enr=input_sq_minenr.value_throttled, perc_area=input_sq_nhsize.value_throttled)
     if len(output) == 3:
         (df, q, msg) = output
+        output_sq_status.object = "Done calculating neighborhood"
         cache_sq_neighborhood.object = df.to_json()
         cache_sq_q.object = q.to_json()
     else:
-        msg = output
+        output_sq_status.object = output
         cache_sq_neighborhood.object = ""
         cache_sq_q.object = ""
-    return msg if len(output) == 1 else msg+"{} total pairs".format(len(df))
+    input_sq_button.disabled=False
+input_sq_button.on_click(store_gene_data)
 
 # Barplot
 @pn.depends(cache_sq_neighborhood.param.object, input_sq_bary.param.value)
@@ -431,7 +438,7 @@ def layout_single_network(q, query, min_z, max_q, min_rep):
     except:
         cache_sq_nwdists.object = ""
         cache_sq_gp.object = ""
-        return "Failed to read neighborhood (see setings panel for details)."
+        return "Failed to read neighborhood (see settings panel for details)."
     
     # Define node list
     z_dict = {"all":5, "B":4, "*":3, "**":2, "***":1}
@@ -508,14 +515,16 @@ cache_mq_query = pn.pane.Str("")
 cache_mq_q = pn.pane.Str("")
 cache_mq_nwdists = pn.pane.Str("")
 cache_mq_gp = pn.pane.Str("")
+cache_mq_settings = pn.pane.Str("")
 
 # Main options
 input_mq_preselected = pn.widgets.Select(options=["CD63, CD81, CD3G", "Tetraspanins", "EV Markers from PCA"],
-                                         name="Predefined gene lists")
-input_mq_list = pn.widgets.TextAreaInput(value="CD63, CD81, CD3G",
-                                         name="List of gene symbols to compare (select from above for examples)")
+                                         name="Predefined \n gene lists")
+input_mq_list = pn.widgets.TextAreaInput(value="CD63, CD81, CD3G", sizing_mode="fixed")
 input_mq_topn = pn.widgets.IntSlider(start=20, end=100, step=5, value=30, value_throttled=30,
                                      name="Neighborhood size")
+input_mq_button = pn.widgets.Button(name='Calculate neighborhoods', button_type='primary')
+output_mq_status = pn.pane.Markdown("", width_policy="max", sizing_mode="stretch_width")
 
 # Advanced options
 input_mq_tolerance = pn.widgets.IntSlider(start=5, end=50, step=5, value=45, value_throttled=45,
@@ -529,7 +538,11 @@ input_mq_nhsize = pn.widgets.IntSlider(start=50, end=500, step=50, value=250, va
 
 # Tabcolumn containing options
 options_multi = pn.Tabs()
-options_multi.append(("Neighborhood selection", pn.Column(input_mq_preselected, input_mq_list, input_mq_topn)))
+options_multi.append(("Neighborhood selection", pn.Column(input_mq_preselected, 
+                                                          pn.pane.Markdown("List of gene symbols to compare  \n\
+                                                          (select from above for examples)"),
+                                                          input_mq_list, input_mq_topn,
+                                                          input_mq_button, output_mq_status)))
 options_multi.append(("Advanced options", pn.Column(input_mq_tolerance, input_mq_minr,
                                                     input_mq_minenr, input_mq_nhsize)))
 
@@ -562,37 +575,89 @@ def update_genelist(event):
 input_mq_preselected.param.watch(update_genelist, 'value')
     
 
-# Get the multi query data
+# Get the multi query data -> change this to a button triggered callback and create a second callback to
+# validate the input, compare the settings and enable/disable the run button accordingly
+# @pn.depends(input_mq_list.param.value, input_mq_topn.param.value_throttled,
+#             input_mq_tolerance.param.value_throttled, input_mq_minr.param.value_throttled,
+#             input_mq_minenr.param.value_throttled, input_mq_nhsize.param.value_throttled)
 @pn.depends(input_mq_list.param.value, input_mq_topn.param.value_throttled,
             input_mq_tolerance.param.value_throttled, input_mq_minr.param.value_throttled,
             input_mq_minenr.param.value_throttled, input_mq_nhsize.param.value_throttled)
-def store_mq_data(genes, topn, tolerance, min_corr, min_enr, nhsize):
-    genes = [el.strip() for el in input_mq_list.value.split(",")]
-    output = multi_query(df_core, meta_dict, genes=genes, size=topn, rank_tolerance=tolerance,
-                         min_corr=min_corr, min_enr=min_enr, perc_area=nhsize)
+def validate_mq_param(genes, size, tolerance, minr, minenr, nhsize):
+    wdgts = [input_mq_preselected, input_mq_list, input_mq_topn, input_mq_tolerance,
+             input_mq_minr, input_mq_minenr, input_mq_nhsize]
+    for wdgt in wdgts:
+        wdgt.disabled = True
+    genes = [el.strip().upper() for el in input_mq_list.value.split(",")]
+    genes.sort()
+    for el in genes:
+        if el not in meta_dict['gene_id'].keys():
+            output_mq_status.object = "{} not found in the dataset. The single gene query tab has                                        an autocomplete function for all quantified genes. Use this to check,                                        which genes can be put into the mutli gene query.".format(el)
+            for wdgt in wdgts:
+                wdgt.disabled = False
+            input_mq_button.disabled = True
+            return
+    oldparams = cache_mq_settings.object
+    newparams = {"gene": genes, "size": size, "tolerance": tolerance, "minr": minr, "minenr": minenr, "nhsize": nhsize}
+    newparams = pd.DataFrame(pd.Series(newparams)).to_json()
+    if oldparams == newparams:
+        output_mq_status.object = "No need to recalculate, the result for these settings is what you are looking at."
+        for wdgt in wdgts:
+            wdgt.disabled = False
+        input_mq_button.disabled = True
+        return
+    else:
+        output_mq_status.object = "Hit the button to start calculating the selected neighborhoods.         This can take ~0.5 min per gene."
+        for wdgt in wdgts:
+            wdgt.disabled = False
+        input_mq_button.disabled = False
+        return
+
+
+def store_mq_data(event):
+    wdgts = [input_mq_preselected, input_mq_list, input_mq_topn, input_mq_tolerance,
+             input_mq_minr, input_mq_minenr, input_mq_nhsize]
+    for wdgt in wdgts:
+        wdgt.disabled = True
+    input_mq_button.disabled = True
+    output_mq_status.object = "Started neighborhood calculation ..."
+    genes = [el.strip().upper() for el in input_mq_list.value.split(",")]
+    genes.sort()
+    params = {"gene": genes, "size": input_mq_topn.value_throttled, "tolerance": input_mq_tolerance.value_throttled,
+              "minr": input_mq_minr.value_throttled, "minenr": input_mq_minenr.value_throttled,
+              "nhsize": input_mq_nhsize.value_throttled}
+    cache_mq_settings.object = pd.DataFrame(pd.Series(params)).to_json()
+    pb = pn.widgets.Progress(max=len(genes), value=0, width_policy="max")
+    options_multi[0].append(pb)
+    output = multi_query(df_core, meta_dict, genes=genes,
+                         size=params["size"], rank_tolerance=params["tolerance"], min_corr=params["minr"],
+                         min_enr=params["minenr"], perc_area=params["nhsize"], pb=pb)
+    options_multi[0].remove(pb)
     if len(output) == 3:
         (df, q, msg) = output
-        cache_mq_query.object = df.to_json()
+        output_mq_status.object = "Done calculating neighborhoods."
         cache_mq_q.object = q.to_json()
+        cache_mq_query.object = df.to_json()
     else:
-        msg = output
-        cache_mq_query.object = ""
+        output_mq_status.object = output
         cache_mq_q.object = ""
-    return msg if len(output) == 1 else msg+"{} total pairs".format(len(df))
+        cache_mq_query.object = ""
+    for wdgt in wdgts:
+        wdgt.disabled = False
+input_mq_button.on_click(store_mq_data)
 
 
 # Networkplot
-@pn.depends(cache_mq_q.param.object, cache_mq_query.param.object,
-            input_mq_minz.param.value, input_mq_maxq.param.value, input_mq_minrep.param.value)
-def layout_multi_network(q, query, min_z, max_q, min_rep):
+@pn.depends(cache_mq_query.param.object, input_mq_minz.param.value, input_mq_maxq.param.value, input_mq_minrep.param.value)
+def layout_multi_network(query, min_z, max_q, min_rep):
     # Retrieve neighborhood information
     try:
         query_result = pd.read_json(query).sort_values("Distance measure")
-        q = pd.read_json(q, typ="series", convert_dates=False, convert_axes=False)
+        q = pd.read_json(cache_mq_q.object, typ="series", convert_dates=False, convert_axes=False)
     except:
         cache_mq_nwdists.object = ""
         cache_mq_gp.object = ""
-        return "Failed to read neighborhood (see setings panel for details)."
+        return "Failed to read neighborhood (see settings panel for details)."
     
     # Define node list
     z_dict = {"all":5, "B":4, "*":3, "**":2, "***":1}
@@ -662,9 +727,21 @@ output_mq_tabs.append(("Network plot", output_mq_nwk))
 
 ## Assemble full app
 content = pn.Tabs()
-content.append(("Single gene query", pn.Row(pn.Column(options_single, store_gene_data), output_sq_tabs)))
-content.append(("Multi gene query", pn.Row(pn.Column(options_multi, store_mq_data), output_mq_tabs)))
-content.append(("About", pn.pane.Markdown("## Reference\n## Data download\n## Interpretation guidelines")))
+content.append(("Single gene query", pn.Row(pn.Column(options_single), output_sq_tabs)))
+content.append(("Multi gene query", pn.Row(pn.Column(options_multi, validate_mq_param), output_mq_tabs)))
+content.append(("About", pn.pane.Markdown('''
+## Interpretation guidelines
+Please refer to the methods section of the submitted paper for understanding the tools provided here. (Temporary solution)
+
+The tool is currently still work in progress, but the functionalities described in the paper are already
+fully implemented. Features that remain to be added are interactive PCA and profile plots, as well as automatic
+incorporation of data from other sources or services like Uniprot and GO.
+
+## Source code
+The source code for this website and the corresponding analysis is stored at https://github.com/JuliaS92/EVProfiler, which
+is a private repository until final paper acceptance. In case you want to get access to the code before that please get in
+touch with me directly or through the editor in charge if you are a reviewer.
+''')))
 
 app = pn.Column("# Jurkat EV Neighbour Network Predictor Tool", content)
 
