@@ -187,7 +187,7 @@ def sq_barplot(df, var):
     else:
         p = q_m.hvplot.barh(x="Lead gene name", y=var, color="Common lists",
                                height=60+11*len(q_m))
-    p.opts(cmap=["orange", "darkgrey", "white"][0:len(np.unique(q_m["Common lists"]))][::-1])
+    p.opts(cmap=["orange", "darkgrey", "white", "lightskyblue"][0:len(np.unique(q_m["Common lists"]))][::-1])
     p.opts(legend_position="top")
     return p
 
@@ -264,15 +264,18 @@ def draw_network_figure(dists_pd, GP, query_result, highlight, q):
         Gi = nx.Graph([(hit,hit) for hit in [highlight] if hit in G.nodes()])
         nx.draw_networkx_nodes(Gi, GP, node_color="blue", node_size=800)
     # replicate 1
-    Gi = nx.Graph([(hit,hit) for hit, rep in zip(query_result["Lead gene name"], query_result["Common lists"]) if rep==1 and hit in G.nodes()])
+    Gi = nx.Graph([(hit,hit) for hit, rep in zip(query_result["Lead gene name"], query_result["Common lists"])
+                   if rep==1 and hit in G.nodes()])
     nx.draw_networkx_nodes(Gi, GP, node_color="white", node_size=600)
     nx.draw_networkx_labels(Gi, GP, font_size=7)
     # replicate 2
-    Gi = nx.Graph([(hit,hit) for hit, rep in zip(query_result["Lead gene name"], query_result["Common lists"]) if rep==2 and hit in G.nodes()])
+    Gi = nx.Graph([(hit,hit) for hit, rep in zip(query_result["Lead gene name"], query_result["Common lists"])
+                   if rep==2 and hit in G.nodes()])
     nx.draw_networkx_nodes(Gi, GP, node_color="lightgrey", node_size=600)
     nx.draw_networkx_labels(Gi, GP, font_size=7)
     # replicate 3
-    Gi = nx.Graph([(hit,hit) for hit, rep in zip(query_result["Lead gene name"], query_result["Common lists"]) if rep==3 and hit in G.nodes()])
+    Gi = nx.Graph([(hit,hit) for hit, rep in zip(query_result["Lead gene name"], query_result["Common lists"])
+                   if rep==3 and hit in G.nodes()])
     nx.draw_networkx_nodes(Gi, GP, node_color="orange", node_size=600)
     nx.draw_networkx_labels(Gi, GP, font_size=7)
     # query
