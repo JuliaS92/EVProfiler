@@ -44,13 +44,13 @@ meta_dict["id_meta"] = df.iloc[:, 1:18].to_dict("index")
 # In[3]:
 
 
-df_pca = pd.read_csv("PCA cooridnates Jurkat Exosomes 13 April 2020t.txt", sep='\t')
-df_pca.columns
-df_pca.columns = ['Primary ID', 'ClassID', 'Lead gene name',
-       'Protein names', 'Gene names',
-       'Fasta headers', 'Sec. ID',
-       'Organelle', 'Min Ratio count', 'Class',
-       'PCA 1', 'PCA2']
+#df_pca = pd.read_csv("PCA cooridnates Jurkat Exosomes 13 April 2020t.txt", sep='\t')
+#df_pca.columns
+#df_pca.columns = ['Primary ID', 'ClassID', 'Lead gene name',
+#       'Protein names', 'Gene names',
+#       'Fasta headers', 'Sec. ID',
+#       'Organelle', 'Min Ratio count', 'Class',
+#       'PCA 1', 'PCA2']
 
 
 # In[4]:
@@ -176,17 +176,18 @@ def sq_barplot(df, var):
         "Worst replicate correlation": "Min correl",
         "Local distance percentile": "Local distance percentile"
     }
+    q_m = q_m.iloc[::-1,:]
     var = label_var_dict[var]
     if var == "z-scoring based category":
         z_dict = {"-":5, "B":4, "*":3, "**":2, "***":1, np.nan:0, None:0}
         q_m["z-scoring based category"] = [z_dict[k] for k in q_m["z-scoring based category"]]
         z_dict = {"-":5, "B":4, "*":3, "**":2, "***":1, "query":0}
-        p = q_m.hvplot.bar(x="Lead gene name", y=var, color="Common lists",
-                               height=500, yticks = [(z_dict[k], k) for k in z_dict.keys()])
+        p = q_m.hvplot.barh(x="Lead gene name", y=var, color="Common lists",
+                               height=60+11*len(q_m), xticks = [(z_dict[k], k) for k in z_dict.keys()])
     else:
-        p = q_m.hvplot.bar(x="Lead gene name", y=var, color="Common lists",
-                               height=500)
-    p.opts(xrotation=60)
+        p = q_m.hvplot.barh(x="Lead gene name", y=var, color="Common lists",
+                               height=60+11*len(q_m))
+    p.opts(cmap=["orange", "darkgrey", "white"][0:len(np.unique(q_m["Common lists"]))][::-1])
     p.opts(legend_position="top")
     return p
 
@@ -248,7 +249,7 @@ def draw_network_figure(dists_pd, GP, query_result, highlight, q):
                    {"width": 3, "edge_color": "darkorange", "style": "solid", "alpha": 1}, # 10%
                    {"width": 2, "edge_color": "#ababab", "style": "solid", "alpha": 1}, # 25%
                    {"width": 2, "edge_color": "lightgrey", "style": "solid", "alpha": 1}, # 50%
-                   {"width": 2, "edge_color": "lightgrey", "style": "solid", "alpha": 1}] # 100%
+                   {"width": 2, "edge_color": "lightgrey", "style": "dotted", "alpha": 1}] # 100%
     edges = []
     for q_cat, style in zip(q.index[-2::-1], edge_styles[-2::-1]):
         edgelist = [(u, v) for (u, v, d) in G.edges(data=True) if d['quantile']==float(q_cat)]
@@ -382,7 +383,7 @@ input_sq_minz = pn.widgets.Select(options=["***", "**", "*", "B", "all"],
                                   name="Minimum z scoring for nodes:", value="**")
 input_sq_minrep = pn.widgets.Select(options=[1, 2, 3], name="Minimum shared replicates:", value=2)
 input_sq_maxq = pn.widgets.Select(options=["1%", "5%", "10%", "25%", "50%", "100%"],
-                                  name="Minimum quantile for edges:", value="50%")
+                                  name="Maximum quantile for edges:", value="50%")
 input_sq_highlight = pn.widgets.AutocompleteInput(options=[el for el in meta_dict["gene_id"].keys() if type(el) == str]+
                                                   ["none", "None"], name="Highlight gene:", value="None")
 input_sq_disablehvnx = pn.widgets.Checkbox(value=False, name="figure style")
@@ -408,12 +409,12 @@ def store_gene_data(event):
     if len(output) == 3:
         (df, q, msg) = output
         output_sq_status.object = "Done calculating neighborhood"
-        cache_sq_neighborhood.object = df.to_json()
         cache_sq_q.object = q.to_json()
+        cache_sq_neighborhood.object = df.to_json()
     else:
         output_sq_status.object = output
-        cache_sq_neighborhood.object = ""
         cache_sq_q.object = ""
+        cache_sq_neighborhood.object = ""
     input_sq_button.disabled=False
 input_sq_button.on_click(store_gene_data)
 
@@ -428,13 +429,13 @@ def get_gene_data(df, var):
     return p
 
 # Networkplot
-@pn.depends(cache_sq_q.param.object, cache_sq_neighborhood.param.object,
+@pn.depends(cache_sq_neighborhood.param.object,
             input_sq_minz.param.value, input_sq_maxq.param.value, input_sq_minrep.param.value)
-def layout_single_network(q, query, min_z, max_q, min_rep):
+def layout_single_network(query, min_z, max_q, min_rep):
     # Retrieve neighborhood information
     try:
         query_result = pd.read_json(query).sort_values("Distance measure")
-        q = pd.read_json(q, typ="series", convert_dates=False, convert_axes=False)
+        q = pd.read_json(cache_sq_q.object, typ="series", convert_dates=False, convert_axes=False)
     except:
         cache_sq_nwdists.object = ""
         cache_sq_gp.object = ""
@@ -495,10 +496,11 @@ def draw_single_network(GP, highlight, figure_style):
 
 
 ## Assemble output tabs for single query
-output_bar = pn.Column(input_sq_bary, get_gene_data)
+output_bar = pn.Column(input_sq_bary, pn.pane.Markdown("colors indicate occurence across replicate lists"), get_gene_data)
 output_nwk = pn.Column(pn.Row(input_sq_minz, input_sq_maxq, input_sq_minrep),
                        pn.Row(input_sq_highlight, input_sq_disablehvnx),
-                       draw_single_network, layout_single_network)
+                       pn.Row(draw_single_network, pn.pane.SVG("./LegendNetworksFull.svg")),
+                       layout_single_network)
 
 output_sq_tabs = pn.Tabs()
 output_sq_tabs.append(("Network plot", output_nwk))
@@ -551,7 +553,7 @@ input_mq_minz = pn.widgets.Select(options=["***", "**", "*", "B", "all"],
                                   name="Minimum z scoring for nodes:", value="B")
 input_mq_minrep = pn.widgets.Select(options=[1, 2, 3], name="Minimum shared replicates:", value=2)
 input_mq_maxq = pn.widgets.Select(options=["1%", "5%", "10%", "25%", "50%", "100%"],
-                                  name="Minimum quantile for edges:", value="50%")
+                                  name="Maximum quantile for edges:", value="50%")
 input_mq_highlight = pn.widgets.AutocompleteInput(options=[el for el in meta_dict["gene_id"].keys() if type(el) == str]+
                                                   ["none", "None"], name="Highlight gene:", value="None")
 input_mq_disablehvnx = pn.widgets.Checkbox(value=False, name="figure style")
@@ -566,7 +568,7 @@ input_mq_disablehvnx = pn.widgets.Checkbox(value=False, name="figure style")
 def update_genelist(event):
     l = event.new
     lg_dict = {"CD63, CD81, CD3G": "CD63, CD81, CD3G",
-               "Tetraspanins": "CD81, CD9, CD63, CD151, TSPAN33, CD82, CD53, TSPAN5, TSPAN7, ADAM10, IGSF8, SCARB1",
+               "Tetraspanins": "CD81, CD9, CD63, CD151, TSPAN33, CD82, CD53, TSPAN5, TSPAN7",
                "EV Markers from PCA": "TTYH3, PLSCR3, MINK1, SELPLG, IGSF8, CD9, SLC44A1, CD53, CD82, TNFAIP3, \
                 ARRDC1, ALCAM, CD63, TAOK1, MAP4K4, VPS28, PPP1R18, CD81, CHMP2A, PIP4K2A, PDCD6, SH3GL1, VPS4B, \
                 CHMP2B, CHMP1A, VPS4A, ANXA7, GDI2, TRIM25, LDHA, KARS"}
@@ -716,7 +718,8 @@ def draw_multi_network(GP, highlight, figure_style):
 ## Assemble output tabs for multi query
 output_mq_nwk = pn.Column(pn.Row(input_mq_minz, input_mq_maxq, input_mq_minrep),
                           pn.Row(input_mq_highlight, input_mq_disablehvnx),
-                          draw_multi_network, layout_multi_network)
+                          pn.Row(draw_multi_network, pn.pane.SVG("./LegendNetworksFull.svg")),
+                          layout_multi_network)
 
 output_mq_tabs = pn.Tabs()
 output_mq_tabs.append(("Network plot", output_mq_nwk))
@@ -725,23 +728,137 @@ output_mq_tabs.append(("Network plot", output_mq_nwk))
 # In[11]:
 
 
+## Aboutstab
+about = '''
+## Quick Guide:
+1. Enter a gene symbol in UPPER CASE in the single query tab or several in the multi query tab.
+2. Start the neighborhood calculation by clicking the button underneath.
+3. The network shows the distance based relationships between the close neighbours, ideally
+revealing tight clusters (try e.g. PSMA1) and peripheral proteins.
+4. The barplot shows various quantitative measures for all neighbors (only in single query mode).
+5. In order to understand what the advanced settings and additional parameters for the network
+selection, please refer to the theoretical section below. All settings have reasonable default values.
+
+### Useful hints
+- The checkbox underneath the settings for the network layout lets you switch between the interactive network, 
+which includes a toolbar to the right as provided by hvplot, and the figure style (7pt font-size) network, 
+which can be copied for future reference (Download option pending).
+- If network nodes are too crowded, reduce the stringency on the quantile to add back more edges that pull 
+distant nodes closer together and thereby tight clusters slightly apart.
+- The inclusion of neighbours found in only one neighbourhood replicate is not recommended, but can be tried 
+for an low stringency explorative analysis of the data. 
+- If you expect a protein to appear in the neighborhood of a query but can’t see it in the network, try 
+increasing the neighborhood size and tolerance, relief the z-score stringency and use the highlight option 
+on the network to find the protein.
+- The single gene input autocompletes. If a protein is not found, check on Uniprot if it has a 
+different primary gene name. If it is still not on the list it was not quantified sufficiently.
+
+## Theoretical framework and interpretation of results
+
+### Neighborhood calculation
+Profile similarity between proteins is evaluated by calculating the pairwise 
+Manhattan distance (absolute summed difference at every point of the two profiles). The query  
+is retrieved as the top hit (with a distance of 0), and other proteins (see single query barplot) are 
+shown in order of increasing distance to the query. The neighbourhood size defines how many proteins 
+will be displayed in the barplot, and used for building a neighbourhood network. In the advanced 
+settings quality filters can be applied to adjust the stringency and sensitivity of the analysis:
+- minimum number of SILAC quantification events (to be added)
+- minimum cosine correlation of profiles across repeats
+- abundance percentile shift in the F3 extracellular vesicle fraction, which contains the smallest vesicles 
+in the highest proportion, relative to the full proteome
+Proteins not matching these criteria are removed from the dataset before any distances are calculated.
+
+### Neighborhood evaluation
+There are three measures provided to gauge which proteins are reproducibly in close proximity to the 
+query, in the context of the local data density.
+
+1. Replicate ranking  
+The barplot shows the difference between the best and the worst proximity rank of a protein 
+across the three replicates. If the top scoring neighbor (most likely rank 1 in at least one of the 
+replicates) has a replicate range of 10 this means that is was at least on rank 11 in one of the 
+other replicates. A protein is considered common to all three replicates if its overall rank is within 
+the specified neighborhood size and each replicate rank is within the set neighbourhood size + ‘tolerance’, 
+which can be set in the advanced settings.
+2. Z-scoring of proximity  
+To define the close protein neighbourhood of a query, in the context of the local dataspace, 
+a simple estimate of the local profile density and distribution is performed. From the nearest 250 proteins 
+(neighborhood size for scoring as set in the advanced settings), the median distance to the query 
+(termed MDQ) is calculated. Next, for every one of these 250 proteins the absolute distance to the MDQ is 
+determined. The median of these values corresponds to the MAD (median absolute distance to the MDQ). Each 
+positive distance to the MDQ (ie the right tail of the distribution) is then transformed to a pseudo Z 
+score, using a robust estimate of the standard deviation: pZ = ((distance to MDQ) – MDQ) / (1.483 x MAD). 
+Profiles are categorized by these pZ scores: very close neighbours (Z>3.09, ***), close (Z>2.33, **), 
+fairly close (Z>1.64, *), borderline (Z>1.28, B). Note that these categories provide 
+guidance to evaluate relative profile proximity in the context of other mapped proteins nearby. However, they 
+neither reflect exact boundaries for local clusters, nor exact probabilities of association with the query 
+protein. While the actual distances between two proteins are identical regardless 
+which is submitted as the query, the proximity guide classifier may be different because the set 
+of proteins defining the distribution changes with the query. For example, an isolated protein near the 
+edge of a dense cluster of profiles will retrieve some of these proteins as relatively close neighbours, but 
+not vice versa. Thus, it may also be informative to consider also the absolute distances of proteins to the 
+query, as indicated in the predictor output, and the distance quantile.
+3. Distance quantiles  
+To achieve an additional non-directional classification of distances, which is essential for network 
+construction, all pairwise Manhattan-distances between the query’s 250 closest neighbours (same setting 
+as for z-scoring) were calculated. The distances between the network nodes are then categorized by the 
+quantile they occupy in this distribution. If a neighbor has a distance quantile of <1% it means it 
+is at least as close to the query as the closest 1% of all protein pairs in that area are to each other (i.e. 
+a very close neighbor). This score is non-directional, but is affected by other data structures in the 
+vicinity. Again considering an isolated protein close to a protein cluster, the nearest neighbours will 
+occupy a higher quantile because the pairwise distances within the protein cluster will shift the overall 
+distribution towards smaller distances.
+
+### Network generation
+To visualize the complex structure of local neighbourhoods, we utilized network analysis. This can reveal 
+for example if the closest neighbours of a protein form a very tight network among themselves, indicating 
+a functional cluster; if the neighbourhood contains one or more tight subclusters, which may correspond to 
+protein complexes; or if the local neighbourhood is very evenly distributed. These insights cannot be judged 
+from a PCA plot alone, as the dimensional flattening loses information contained in the original 
+nine-dimensional dataset. Similarly, the network architecture is not apparent from the linear list of nearest 
+neighbours (the bar plot), as the relative proximity of the neighbours is not considered; hence, two proteins 
+that are both close to the query might be quite distant from each other. The network analysis was carried 
+out in python using the networkx library 
+[(Hagberg et al, 2008)](https://networkx.github.io/documentation/stable/index.html). Network nodes are 
+selected based on the filter criteria described above, from the neighborhood as calculated based on the 
+selected settings. Nodes have to be close neighbours (by rank) in at least a defined number of replicates 
+(nodes are colour coded accordingly), and have to achieve a minimal z-score, as set by the user. The distances 
+between the remaining network nodes are then categorized by the quantile scoring, calculated by scoring all 
+pairwise connections within this set (not just the ones to the query). All edges that fall into a higher 
+quantile than the selected cut off are discarded. If a node is completely disconnected by this it will not be 
+displayed in the network. All remaining distances are inverted and used as edgeweights for a force-directed 
+layouting algorithm (spring network layout (Fruchterman & Reingold, 1991)), which pulls proteins with short 
+distances closer together. Edges are colored by their distance percentile to visually reveal tight clusters.
+
+### Multi query networks
+To visualize the segregation/overlap of adjacent neighbourhoods, networks can be constructed from more 
+than one query protein. For each of the individual queries, nodes are selected as above. Here a slight 
+adjustment of parameters is useful: Fewer neighbors should be considered, to clearly separate distant queries, 
+but borderline distances should be included, to allow for more connections between adjacent neighbourhoods to 
+shape the network layout. The quantile boundaries are calculated for each individual set of 250 neighbors and 
+then averaged across the queries. Thus, if two queries from areas of dataspace with different densities are 
+selected, this will become apparent in the number and color of the edges (the sparser neighbourhood will have 
+fewer/thinner connections).
+
+## Implementation notes
+This site was implemented in python using the holoviz framework and its bindings to several other python 
+libraries (<https://holoviz.org>). The source code for this website and the corresponding analysis is stored 
+at <https://github.com/JuliaS92/EVProfiler>, which is a private interim repository, until final acceptance of 
+the manuscript. For access to the code prior to publication, please get in touch with 
+Julia Schessner (schessner@biochem.mpg.de) directly or through the Journal editor, if you are a reviewer.
+
+## Reference
+Added upon publication.
+'''
+
+
+# In[12]:
+
+
 ## Assemble full app
 content = pn.Tabs()
 content.append(("Single gene query", pn.Row(pn.Column(options_single), output_sq_tabs)))
 content.append(("Multi gene query", pn.Row(pn.Column(options_multi, validate_mq_param), output_mq_tabs)))
-content.append(("About", pn.pane.Markdown('''
-## Interpretation guidelines
-Please refer to the methods section of the submitted paper for understanding the tools provided here. (Temporary solution)
-
-The tool is currently still work in progress, but the functionalities described in the paper are already
-fully implemented. Features that remain to be added are interactive PCA and profile plots, as well as automatic
-incorporation of data from other sources or services like Uniprot and GO.
-
-## Source code
-The source code for this website and the corresponding analysis is stored at https://github.com/JuliaS92/EVProfiler, which
-is a private repository until final paper acceptance. In case you want to get access to the code before that please get in
-touch with me directly or through the editor in charge if you are a reviewer.
-''')))
+content.append(("About", pn.pane.Markdown(about)))
 
 app = pn.Column("# Jurkat EV Neighbour Network Predictor Tool", content)
 
@@ -756,7 +873,7 @@ def check_pwd(event, app=app):
 pwd.param.watch(check_pwd, 'value')
 
 
-# In[12]:
+# In[13]:
 
 
 app_container.servable()
