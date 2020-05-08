@@ -14,15 +14,14 @@ source evprofiler\bin\activate
 ```bash
 pip install -r requirements.txt
 ```
-In case this fails try installing wheels separately first.
-4. Check that panel is working by running
+4. In case this fails try installing wheels separately first.
+5. Check that panel is working in python:
 ```python
 import panel as pn
 pn.extension()  
 exit()
 ```
-in python.
-5. Either launch a Jupyter notebook server and use the notebook or serve the app using panel:  
+6. Either launch a Jupyter notebook server and use the notebook or serve the app using panel:  
 ```bash
 panel serve Predictor.py --port 8080 --allow-websocket-origin 0.0.0.0:8080 &
 ```
