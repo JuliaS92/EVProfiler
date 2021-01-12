@@ -7,15 +7,11 @@ This is a holoviz app that can either be used as Jupyter Notebook or can be serv
 1. Clone this repository
 2. Create a new python environment and activate it  
 ```bash
-python3 -m venv evprofiler\
-source evprofiler\bin\activate
+python3 -m venv panel10\
+source panel10\bin\activate
 ```
-3. Install the python requirements  
-```bash
-pip install -r requirements.txt
-```
-4. In case this fails try installing wheels separately first.
-5. Check that panel is working in python:
+3. Install the python requirements by running the commands in pipinstallrequirements.txt.
+4. Check that panel is working in python:
 ```python
 import panel as pn
 pn.extension()  

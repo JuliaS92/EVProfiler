@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[ ]:
 
 
 import pandas as pd
@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import time
 
 
-# In[2]:
+# In[ ]:
 
 
 df = pd.read_csv("PredictorData.txt", sep='\t', usecols=range(4,31))
@@ -41,7 +41,7 @@ for g, i in zip(df["Lead gene name"], df.index):
 meta_dict["id_meta"] = df.iloc[:, 1:18].to_dict("index")
 
 
-# In[3]:
+# In[ ]:
 
 
 #df_pca = pd.read_csv("PCA cooridnates Jurkat Exosomes 13 April 2020t.txt", sep='\t')
@@ -53,7 +53,7 @@ meta_dict["id_meta"] = df.iloc[:, 1:18].to_dict("index")
 #       'PCA 1', 'PCA2']
 
 
-# In[4]:
+# In[ ]:
 
 
 ## Backend functions
@@ -345,7 +345,7 @@ def draw_network_interactive(dists_pd, GP, query_result, highlight, q):
     return nw
 
 
-# In[5]:
+# In[ ]:
 
 
 ## Interface elements for single query output
@@ -397,7 +397,7 @@ input_sq_bary = pn.widgets.Select(options=["Distance", "z-scoring based category
                                            "Local distance percentile"], name="Select y-axis to display:")
 
 
-# In[6]:
+# In[ ]:
 
 
 ## Functions for single query data display
@@ -495,7 +495,7 @@ def draw_single_network(GP, highlight, figure_style):
     return nwk
 
 
-# In[7]:
+# In[ ]:
 
 
 ## Assemble output tabs for single query
@@ -510,7 +510,7 @@ output_sq_tabs.append(("Network plot", output_nwk))
 output_sq_tabs.append(("Barplot", output_bar))
 
 
-# In[8]:
+# In[ ]:
 
 
 ## Interface elements for multiple network query
@@ -562,7 +562,7 @@ input_mq_highlight = pn.widgets.AutocompleteInput(options=[el for el in meta_dic
 input_mq_disablehvnx = pn.widgets.Checkbox(value=False, name="figure style")
 
 
-# In[9]:
+# In[ ]:
 
 
 ## Functions for multi query data display
@@ -715,7 +715,7 @@ def draw_multi_network(GP, highlight, figure_style):
     return nwk
 
 
-# In[10]:
+# In[ ]:
 
 
 ## Assemble output tabs for multi query
@@ -728,7 +728,7 @@ output_mq_tabs = pn.Tabs()
 output_mq_tabs.append(("Network plot", output_mq_nwk))
 
 
-# In[11]:
+# In[ ]:
 
 
 ## Aboutstab
@@ -790,7 +790,7 @@ a simple estimate of the local profile density and distribution is performed. Fr
 determined. The median of these values corresponds to the MAD (median absolute distance to the MDQ). Each 
 positive distance to the MDQ (ie the right tail of the distribution) is then transformed to a pseudo Z 
 score, using a robust estimate of the standard deviation: pZ = ((distance to MDQ) – MDQ) / (1.483 x MAD). 
-Profiles are categorized by these pZ scores: very close neighbours (Z>3.09, ***), close (Z>2.33, **), 
+Profiles are categorized by these pZ scores: very close neighbours (Z>3.09, \*\*\*), close (Z>2.33, \*\*), 
 fairly close (Z>1.64, *), borderline (Z>1.28, B). Note that these categories provide 
 guidance to evaluate relative profile proximity in the context of other mapped proteins nearby. However, they 
 neither reflect exact boundaries for local clusters, nor exact probabilities of association with the query 
@@ -845,16 +845,18 @@ fewer/thinner connections).
 ## Implementation notes
 This site was implemented in python using the holoviz framework and its bindings to several other python 
 libraries (<https://holoviz.org>). The source code for this website and the corresponding analysis is stored 
-at <https://github.com/JuliaS92/EVProfiler>, which is a private interim repository, until final acceptance of 
-the manuscript. For access to the code prior to publication, please get in touch with 
-Julia Schessner (schessner@biochem.mpg.de) directly or through the Journal editor, if you are a reviewer.
+at <https://github.com/JuliaS92/EVProfiler>.
 
 ## Reference
-Added upon publication.
+Please alsways include the original research publication when referencing this site:
+
+Lorena Martin-Jaular, Nathalie Nevo, Julia P. Schessner, Mercedes Tkach, Mabel Jouve, Florent Dingli, Damarys Loew, 
+Kenneth  W. Witwer,  Matias Ostrowski, Georg H.H. Borner, Clotilde Théry. Proteomic profiling allows unbiased analysis 
+of HIV-1 and host extracellular vesicles. EMBO Journal (2021).
 '''
 
 
-# In[12]:
+# In[ ]:
 
 
 ## Assemble full app
@@ -863,20 +865,10 @@ content.append(("Single gene query", pn.Row(pn.Column(options_single), output_sq
 content.append(("Multi gene query", pn.Row(pn.Column(options_multi, validate_mq_param), output_mq_tabs)))
 content.append(("About", pn.pane.Markdown(about)))
 
-app = pn.Column("# Jurkat EV Neighbour Network Predictor Tool", content)
+app_container = pn.Column("# Jurkat EV Neighbour Network Predictor Tool", content)
 
 
-pwd = pn.widgets.PasswordInput(name="Please enter password for access.")
-app_container = pn.Column(pwd)
-
-def check_pwd(event, app=app):
-    pwd = event.new
-    if pwd == "Jurkat":
-        app_container[0]=app
-pwd.param.watch(check_pwd, 'value')
-
-
-# In[13]:
+# In[ ]:
 
 
 app_container.servable()
